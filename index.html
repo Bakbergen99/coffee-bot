@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="kz">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Tower</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Comic Sans MS', cursive;
+            background: url("https://i.gifer.com/2FxK.gif") no-repeat center center fixed;
+            background-size: cover;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #ffff00;
+            text-shadow: 2px 2px 4px #fff;
+            margin: 20px;
+            text-align: center;
+        }
+
+        #statusText {
+            font-size: 18px;
+            color: #222;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 8px 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            text-align: center;
+            min-height: 22px;
+            /* Ensure consistent height */
+        }
+
+        #game {
+            position: relative;
+            width: 180px;
+            /* Slightly wider for better playability */
+            height: 450px;
+            /* Slightly taller */
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            border: 2px solid #555;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+            margin-bottom: 10px;
+        }
+
+        .block {
+            width: 60px;
+            height: 60px;
+            background: url('https://cdn-icons-png.flaticon.com/512/924/924514.png') no-repeat center;
+            background-size: 100% 100%;
+            position: absolute;
+            /* bottom: 0; Енді бұны JavaScript арқылы басқарамыз */
+            left: 50%;
+            transform: translateX(-50%);
+            transition: top 0.1s linear;
+            /* Smooth drop animation */
+        }
+
+        button {
+            margin: 8px;
+            padding: 12px 25px;
+            background-color: #6b4c3b;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #5a3e2e;
+        }
+
+        #result {
+            margin-top: 15px;
+            color: #000;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+            min-height: 25px;
+            /* Ensure consistent height */
+        }
+
+        #buttons {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        #audioControl {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            font-size: 28px;
+            cursor: pointer;
+            background: white;
+            border-radius: 50%;
+            padding: 10px;
+            box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+        }
+
+        /* Responsive design */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 24px;
+                margin: 15px;
+            }
+
+            #statusText {
+                font-size: 16px;
+                padding: 6px 10px;
+            }
+
+            #game {
+                width: 150px;
+                height: 380px;
+            }
+
+            .block {
+                width: 50px;
+                /* Adjust block width for smaller screens */
+                height: 50px;
+                background-size: 100% 100%;
+            }
+
+            button {
+                padding: 10px 20px;
+                font-size: 16px;
+                margin: 6px;
+            }
+
+            #result {
+                font-size: 18px;
+                margin-top: 10px;
+            }
+
+            #audioControl {
+                font-size: 24px;
+                bottom: 15px;
+                right: 15px;
+                width: 35px;
+                height: 35px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🏗️ Coffee Tower ☕</h1>
+    <div id="statusText">Ойынды бастау үшін төмендегі батырманы басыңыз 👇</div>
+    <div id="game"></div>
+    <div id="buttons">
+        <button id="startBtn" onclick="startGame()"> Ойнау</button>
+        <button id="backBtn" onclick="goBack()">🔙 Артқа</button>
+    </div>
+    <div id="result"></div>
+    <div id="audioControl" onclick="toggleAudio()">🔊</div>
+    <audio id="bgmusic" loop>
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        const game = document.getElementById('game');
+        const blockHeight = 60; // Height of each coffee cup block
+        const maxVisibleBlocks = 5; // Экранда көрінетін максималды стакан саны
+        let currentBlock = null;
+        let currentLeft = 50; // Initial percentage for horizontal position
+        let direction = 1; // 1 for right, -1 for left
+        let level = 0; // Current tower level (number of blocks stacked)
+        let gameOver = false;
+        let moveIntervalId; // To store the interval ID for moving block
+
+        const statusText = document.getElementById('statusText');
+        const resultText = document.getElementById('result');
+        const buttonsContainer = document.getElementById('buttons');
+        const audio = document.getElementById('bgmusic');
+        const audioControl = document.getElementById('audioControl');
+
+        const coffeeNames = ["Эспрессо", "Капучино", "Латте", "Американо", "Флэт Уайт", "Макиато", "Мокко", "Раф"];
+        const emojis = ["😎", "😁", "😬", "🤔", "😵", "👍", "🥳", "🤩"];
+
+        // Function to update buttons based on game state
+        function updateButtons(state) {
+            if (state === 'playing') {
+                buttonsContainer.innerHTML = `
+                    <button onclick="dropBlock()">📥</button>
+                    <button onclick="stopGame()">⛔ Тоқтату</button>
+                `;
+            } else if (state === 'start') {
+                buttonsContainer.innerHTML = `
+                    <button id="startBtn" onclick="startGame()">🎮 Ойнау</button>
+                    <button id="backBtn" onclick="goBack()">🔙 Артқа</button>
+                `;
+            } else if (state === 'end') {
+                buttonsContainer.innerHTML = `
+                    <button onclick="startGame()">🔁 Қайта ойнау</button>
+                    <button onclick="goBack()">🔙 Артқа</button>
+                `;
+            }
+        }
+
+        // Initialize game state
+        function initGame() {
+            game.innerHTML = ''; // Clear previous blocks
+            level = 0;
+            gameOver = false;
+            currentBlock = null;
+            currentLeft = 50; // Ensure initial position is 50% for next block
+            direction = 1;
+            clearInterval(moveIntervalId); // Clear any existing move interval
+            resultText.innerText = '';
+            statusText.innerText = 'Ойынды бастау үшін төмендегі батырманы басыңыз 👇';
+            updateButtons('start');
+
+            // Ойын басталғанда ең астында бірінші (базалық) стаканды қосу
+            createBaseBlock();
+        }
+
+        // Ең астында тұратын бекітілген стаканды жасайды
+        function createBaseBlock() {
+            const baseBlock = document.createElement('div');
+            baseBlock.classList.add('block');
+            // Бірінші стаканды ойын алаңының ең төменгі жағына орналастырамыз
+            baseBlock.style.top = (game.clientHeight - blockHeight) + 'px';
+            // Ортаға туралау үшін CSS-тегі transform: translateX(-50%) қолданылады
+            game.appendChild(baseBlock);
+            // Бұл стакан қозғалмайды, сондықтан оны тізімге қоспаймыз, тек визуалды база ретінде
+        }
+
+        function startGame() {
+            initGame(); // Reset everything and create the base block
+            statusText.innerText = '☝️ Стаканды дәл орналастырыңыз!';
+            updateButtons('playing');
+            createMovingBlock(); // Бірінші қозғалатын стаканды жасаймыз
+            // Try to play audio, user interaction required for autoplay in most browsers
+            if (audio.paused) {
+                audio.play().catch(e => console.log("Audio play failed, user interaction required:", e));
+            }
+            audioControl.innerText = '🔊';
+        }
+
+        function stopGame() {
+            gameOver = true;
+            clearInterval(moveIntervalId);
+            statusText.innerText = '⛔ Ойын тоқтатылды';
+            resultText.innerText = `☕ Мұнара биіктігі: ${level} қабат`;
+            updateButtons('end');
+        }
+
+        function goBack() {
+            location.reload(); // Simple reload to go back to initial state
+        }
+
+        function createMovingBlock() {
+            if (gameOver) return;
+
+            currentBlock = document.createElement('div');
+            currentBlock.classList.add('block');
+            currentBlock.style.top = '0px'; // Always start from the top
+            // CSS арқылы left: 50%; transform: translateX(-50%); қолданылады
+            game.appendChild(currentBlock);
+            moveBlock(); // moveBlock алғашқы позицияны орнату үшін шақырылады
+        }
+
+        function moveBlock() {
+            clearInterval(moveIntervalId);
+
+            const moveSpeed = 8 + (level * 0.5); // Increase speed with level
+            moveIntervalId = setInterval(() => {
+                if (!currentBlock || gameOver) {
+                    clearInterval(moveIntervalId);
+                    return;
+                }
+                currentLeft += direction * moveSpeed / 10;
+                if (currentLeft >= 85 || currentLeft <= 15) {
+                    direction *= -1;
+                }
+                currentBlock.style.left = currentLeft + '%';
+            }, 30);
+        }
+
+        function dropBlock() {
+            if (!currentBlock || gameOver) return;
+
+            clearInterval(moveIntervalId);
+
+            const currentBlockRect = currentBlock.getBoundingClientRect();
+            const gameRect = game.getBoundingClientRect();
+
+            const currentBlockCenterX = (currentBlockRect.left - gameRect.left) + (currentBlockRect.width / 2);
+
+            // Енді алдыңғы блокты game.children тізімінен аламыз
+            // Бірінші стаканды санамаймыз, себебі ол базалық
+            let prevBlockIndex = game.children.length - 2; // game.children[0] - базалық стакан, [1] - бірінші қойылған стакан
+            if (level === 0) {
+                // Егер бұл бірінші қойылатын стакан болса, базалық стаканды аламыз
+                prevBlockIndex = 0;
+            }
+
+            const prevBlock = game.children[prevBlockIndex];
+            const prevBlockRect = prevBlock.getBoundingClientRect();
+            const prevBlockCenterX = (prevBlockRect.left - gameRect.left) + (prevBlockRect.width / 2);
+
+            const offset = Math.abs(currentBlockCenterX - prevBlockCenterX);
+
+            const coffee = coffeeNames[Math.floor(Math.random() * coffeeNames.length)];
+            const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+
+            const tolerance = 15; // Рұқсат етілген ауытқу (пиксельмен)
+
+            if (offset > tolerance) {
+                statusText.innerText = `☝️ ${level + 1}-қабат: ${coffee} қисық түсті ${emoji}`;
+                resultText.innerText = `☕ Ойын бітті! Мұнара биіктігі: ${level} қабат`;
+                gameOver = true;
+                updateButtons('end');
+                currentBlock.style.left = ((currentBlockCenterX / gameRect.width) * 100) + '%';
+                return;
+            } else {
+                level++;
+                statusText.innerText = `☝️ ${level}-қабат: ${coffee} дәл түсті ${emoji}`;
+                currentBlock.style.left = ((prevBlockCenterX / gameRect.width) * 100) + '%';
+            }
+
+            // Стакандарды төменге жылжыту және ең төменгісін жою
+            // Егер көрінетін стакан саны максималдыдан асып кетсе
+            if (game.children.length > maxVisibleBlocks) {
+                const oldestBlock = game.children[1]; // game.children[0] базалық стакан
+                game.removeChild(oldestBlock);
+
+                // Қалған стакандарды төмен қарай жылжыту
+                for (let i = 1; i < game.children.length; i++) { // Базалық стаканнан кейінгіден бастаймыз
+                    const block = game.children[i];
+                    // Есептеу үшін blockHeight өлшемін қолданамыз
+                    const currentBlockTop = parseInt(block.style.top);
+                    block.style.top = (currentBlockTop + blockHeight) + 'px';
+                }
+            }
+
+
+            // Жаңа түскен блокты дұрыс позицияға қою
+            // Енді барлық блоктың позициясын қайта есептейміз
+            // Базалық блокты есептемей, тек қойылған блоктың санын аламыз (game.children.length - 1)
+            for (let i = 0; i < game.children.length; i++) {
+                const block = game.children[i];
+                if (i === 0) { // Базалық блок
+                    block.style.top = (game.clientHeight - blockHeight) + 'px';
+                } else {
+                    // level - бұл ойыншы жинаған қабат саны
+                    // i - бұл game.children тізіміндегі блоктың индексі
+                    // Блоктарды төменнен жоғарыға дұрыс орналастыру
+                    // Егер maxVisibleBlocks толған болса, ең төменгісі жоғалып кетеді
+                    const totalBlocksOnScreen = game.children.length; // Қазіргі экрандағы блоктардың саны
+                    const positionFromBottom = (totalBlocksOnScreen - i); // Төменнен санағандағы орны
+
+                    block.style.top = (game.clientHeight - (positionFromBottom * blockHeight)) + 'px';
+                }
+            }
+
+            // If game is not over, create the next block
+            if (!gameOver) {
+                currentBlock = null; // Clear reference to old block
+                createMovingBlock();
+            }
+        }
+
+        function toggleAudio() {
+            if (audio.paused) {
+                audio.play();
+                audioControl.innerText = '🔊';
+            } else {
+                audio.pause();
+                audioControl.innerText = '🔇';
+            }
+        }
+
+        // Initialize the game when the page loads
+        document.addEventListener('DOMContentLoaded', initGame);
+    </script>
+</body>
+
+</html>
